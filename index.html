@@ -1,31 +1,140 @@
-<video id="video" width="320" height="240" autoplay playsinline></video>
-<canvas id="canvas" width="320" height="240"></canvas>
-<p id="result">Belum ada hasil</p>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanner SMAIT Juang Jaya</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { background: #f4f7f6; color: #333; font-family: 'Segoe UI', sans-serif; }
+        .card { background: #ffffff; border: none; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #eee; border: 2px solid #ddd !important; }
+        .status-msg { font-size: 1.1rem; font-weight: bold; min-height: 60px; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
+        .instruction-text { font-size: 0.85rem; color: #666; margin-bottom: 5px; font-weight: 500; }
+    </style>
+</head>
+<body>
+<div class="container py-4">
+    <div class="card">
+        <div class="card-body p-4">
+            <h4 class="text-center text-primary fw-bold mb-4">Scanner Presensi SMAIT</h4>
+            
+            <div class="mb-3">
+                <p class="instruction-text">Silakan masukkan nama lengkap petugas:</p>
+                <input type="text" id="petugas" class="form-control mb-3" placeholder="Contoh: Ahmad Zawawi">
+                
+                <p class="instruction-text">Masukkan email resmi petugas (untuk validasi):</p>
+                <input type="email" id="emailPetugas" class="form-control" placeholder="Contoh: aza.ksa08@gmail.com">
+            </div>
 
-<script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+            <div id="reader"></div>
+            
+            <button id="start-btn" class="btn btn-primary w-100 mt-3 p-3 fw-bold shadow">AKTIFKAN KAMERA & AUDIO</button>
+            <div id="status" class="alert mt-3 d-none text-center status-msg"></div>
+        </div>
+    </div>
+</div>
+
+<audio id="beepSuccess" preload="auto">
+  <source src="https://www.soundjay.com/buttons_c2026/beep-07b.mp3" type="audio/mpeg">
+  <source src="https://www.soundjay.com/buttons_c2026/beep-08b.mp3" type="audio/mpeg">
+</audio>
+
+<audio id="beepError" preload="auto">
+  <source src="https://www.soundjay.com/buttons_c2026/beep-02.mp3" type="audio/mpeg">
+</audio>
+
 <script>
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-const result = document.getElementById("result");
+    const sndSuccess = document.getElementById('beepSuccess');
+    const sndError = document.getElementById('beepError');
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyFDbmNWzXT45OGZLx0XEVAM1EpZPxRNUGgeKagfw-kddvChIWrrdhkXfEvRe0ZEPAh/exec"; 
+    const html5QrCode = new Html5Qrcode("reader");
+    const statusDiv = document.getElementById('status');
 
-navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-  .then(stream => {
-    video.srcObject = stream;
-    requestAnimationFrame(tick);
-  });
-
-function tick() {
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
-    if (code) {
-      result.textContent = "QR terbaca: " + code.data;
+    // Fungsi untuk "memancing" suara saat klik pertama
+    function pancingAudio() {
+        sndSuccess.play().then(() => {
+            sndSuccess.pause();
+            sndSuccess.currentTime = 0;
+        }).catch(e => console.log("Audio pancingan tertahan"));
+        
+        sndError.play().then(() => {
+            sndError.pause();
+            sndError.currentTime = 0;
+        }).catch(e => console.log("Audio pancingan tertahan"));
     }
-  }
-  requestAnimationFrame(tick);
-}
+
+function onScanSuccess(decodedText) {
+        const petugas = document.getElementById('petugas').value;
+        const email = document.getElementById('emailPetugas').value;
+
+        if(!petugas || !email) {
+            alert("Lengkapi Nama & Email Petugas!");
+            return;
+        }
+
+        html5QrCode.pause();
+        showStatus("⏳ Memverifikasi...", "alert-info");
+
+        fetch(WEB_APP_URL, {
+            method: "POST",
+            body: JSON.stringify({ nomor: decodedText, petugas: petugas, emailPetugas: email })
+        })
+        .then(res => res.text())
+        .then(txt => {
+            // Kita paksa teks menjadi huruf besar semua agar pengecekan tidak meleset
+            const responServer = txt.toUpperCase();
+            const isBerhasil = responServer.includes("BERHASIL");
+            
+            const cleanMsg = txt.replace("BERHASIL: ", "").replace("GAGAL: ", "").replace("ERROR: ", "");
+            
+            // RESET SEMUA AUDIO (Penting agar tidak tumpang tindih)
+            sndSuccess.pause();
+            sndError.pause();
+            sndSuccess.currentTime = 0;
+            sndError.currentTime = 0;
+
+            // LOGIKA PEMILIHAN SUARA
+            if (isBerhasil === true) {
+                console.log("Memutar Suara Sukses");
+                sndSuccess.play().catch(e => console.log("Audio sukses diblokir browser"));
+            } else {
+                console.log("Memutar Suara Gagal");
+                sndError.play().catch(e => console.log("Audio gagal diblokir browser"));
+            }
+
+            statusDiv.innerHTML = `
+                <div>${cleanMsg}</div>
+                <button id="btn-ok" class="btn ${isBerhasil ? 'btn-success' : 'btn-danger'} mt-2 px-5 fw-bold shadow">OKE - LANJUT</button>
+            `;
+            statusDiv.className = `alert mt-3 d-block fw-bold ${isBerhasil ? 'alert-success' : 'alert-danger'}`;
+
+            document.getElementById('btn-ok').addEventListener('click', function() {
+                statusDiv.classList.add('d-none');
+                html5QrCode.resume();
+            });
+        })
+        .catch(err => {
+            // Jika koneksi internet putus, bunyikan suara error
+            sndSuccess.pause();
+            sndError.currentTime = 0;
+            sndError.play();
+            alert("Koneksi Error/Server Sibuk");
+            html5QrCode.resume();
+        });
+    }
+
+    function showStatus(msg, cls) {
+        statusDiv.innerText = msg;
+        statusDiv.className = "alert mt-3 d-block fw-bold " + cls;
+    }
+
+    document.getElementById('start-btn').addEventListener('click', function() {
+        pancingAudio(); // PENTING: Membuka 'keran' audio browser
+        this.classList.add('d-none');
+        html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, onScanSuccess);
+    });
 </script>
+</body>
+</html>
