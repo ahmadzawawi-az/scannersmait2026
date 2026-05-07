@@ -12,6 +12,20 @@
         #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #eee; border: 2px solid #ddd !important; }
         .status-msg { font-size: 1.1rem; font-weight: bold; min-height: 60px; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
         .instruction-text { font-size: 0.85rem; color: #666; margin-bottom: 5px; font-weight: 500; }
+        #reader { 
+        width: 100% !important; 
+        max-width: 500px; 
+        margin: 0 auto;
+        border-radius: 15px; 
+        overflow: hidden; 
+        background: #000; /* Warna hitam agar kotak terlihat meski kamera belum aktif */
+        min-height: 250px; /* Menjaga kotak tidak kempes */
+        border: 2px solid #007bff !important;
+    }
+    /* Memastikan video memenuhi kotak secara proporsional */
+    #reader video {
+        object-fit: cover !important;
+    }
     </style>
 </head>
 <body>
@@ -135,6 +149,33 @@ function onScanSuccess(decodedText) {
         this.classList.add('d-none');
         html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, onScanSuccess);
     });
+
+    // 1. Fungsi untuk menjalankan kamera
+function jalankanKamera() {
+    // Sembunyikan tombol setelah diklik
+    document.getElementById('start-btn').classList.add('d-none');
+
+    const config = { 
+        fps: 20, 
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0 
+    };
+
+    html5QrCode.start(
+        { facingMode: "environment" }, 
+        config, 
+        onScanSuccess
+    ).catch(err => {
+        alert("Kamera Error: " + err);
+        document.getElementById('start-btn').classList.remove('d-none');
+    });
+}
+
+// 2. Hubungkan Tombol dengan Fungsi di atas
+document.getElementById('start-btn').addEventListener('click', function() {
+    pancingAudio(); // Memastikan suara aktif
+    jalankanKamera(); // Menjalankan kamera
+});
 </script>
 </body>
 </html>
