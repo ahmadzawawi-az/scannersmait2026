@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Scanner Kehadiran</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+</head>
+<body>
+  <h1>Scanner Kehadiran</h1>
+
+  <!-- Input email panitia -->
+  <input id="emailInput" type="email" placeholder="Masukkan email panitia">
+  <button onclick="startScanner()">📷 Buka Kamera</button>
+
+  <video id="video" width="320" height="240" autoplay playsinline></video>
+  <canvas id="canvas" width="320" height="240"></canvas>
+  <p id="result">Belum ada hasil</p>
+
+<script>
+  let userEmail = null;
+  let isProcessing = false;
+
+  function startScanner() {
+    userEmail = document.getElementById("emailInput").value.trim();
+    if (!userEmail) {
+      alert("Masukkan email panitia terlebih dahulu!");
+      return;
+    }
+
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const result = document.getElementById("result");
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then(stream => {
+        video.srcObject = stream;
+        requestAnimationFrame(tick);
+      })
+      .catch(err => {
+        result.textContent = "Error Kamera: " + err.message;
+      });
+
+    function tick() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code && !isProcessing) {
+          isProcessing = true;
+          result.textContent = "QR terbaca: " + code.data;
+
+          fetch("https://script.google.com/macros/s/AKfycbyVJaRLqp_NtdsyHPZ4R3xrZvothahVYbURvGBGE0b4r0QOrRJFejxiCOQsVIcFuM-x/exec", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ qrcode: code.data, email: userEmail })
+          })
+          .then(res => res.json())
+          .then(res => {
+            result.textContent = res.success ? "✓ " + res.message : "✗ " + res.message;
+            setTimeout(() => { isProcessing = false; }, 3000);
+          })
+          .catch(err => {
+            result.textContent = "System Error: " + err.message;
+            setTimeout(() => { isProcessing = false; }, 5000);
+          });
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+  }
+</script>
+</body>
+</html>
