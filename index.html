@@ -17,8 +17,9 @@
     class="w-full border rounded-xl p-2 mb-4 text-sm">
 
   <!-- Video kamera -->
-  <video id="video" class="w-full rounded-xl shadow-lg hidden" autoplay playsinline></video>
-  <canvas id="canvas" class="hidden"></canvas>
+  <video id="video" width="320" height="240" autoplay playsinline></video>
+  <canvas id="canvas" width="320" height="240" class="hidden"></canvas>
+
 
   <!-- Status card -->
   <div id="status-container" class="mt-4 p-4 rounded-2xl hidden border-2 text-left">
@@ -63,6 +64,7 @@
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(imageData.data, imageData.width, imageData.height);
+
           if (code) {
             isProcessing = true;
             document.getElementById("status-title").innerText = "Memproses...";
