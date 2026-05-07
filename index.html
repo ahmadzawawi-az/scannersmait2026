@@ -1,99 +1,31 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <title>Scanner Kehadiran</title>
-  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
-<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4">
+<video id="video" width="320" height="240" autoplay playsinline></video>
+<canvas id="canvas" width="320" height="240"></canvas>
+<p id="result">Belum ada hasil</p>
 
-<div class="w-full max-w-sm bg-white rounded-3xl shadow-xl p-6 text-center">
-  <h1 class="text-xl font-bold text-emerald-700 mb-4">Scanner QR Kehadiran</h1>
-
-  <!-- Input email panitia -->
-  <input id="emailInput" type="email" placeholder="Masukkan email panitia"
-    class="w-full border rounded-xl p-2 mb-4 text-sm">
-
-  <!-- Video kamera -->
-  <video id="video" width="320" height="240" autoplay playsinline></video>
-  <canvas id="canvas" width="320" height="240" class="hidden"></canvas>
-
-
-  <!-- Status card -->
-  <div id="status-container" class="mt-4 p-4 rounded-2xl hidden border-2 text-left">
-    <p id="status-title" class="font-bold text-lg mb-1"></p>
-    <p id="status-body" class="text-sm"></p>
-  </div>
-
-  <!-- Tombol -->
-  <button id="btnCamera" onclick="startScanner()" 
-    class="bg-emerald-600 hover:bg-emerald-700 text-white w-full py-2 rounded-xl font-bold mt-4">
-    📷 Buka Kamera
-  </button>
-</div>
-
+<script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 <script>
-  let isProcessing = false;
-  let userEmail = null;
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const result = document.getElementById("result");
 
-  function startScanner() {
-    userEmail = document.getElementById("emailInput").value.trim();
-    if (!userEmail) {
-      alert("Masukkan email panitia terlebih dahulu!");
-      return;
+navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+  .then(stream => {
+    video.srcObject = stream;
+    requestAnimationFrame(tick);
+  });
+
+function tick() {
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    if (code) {
+      result.textContent = "QR terbaca: " + code.data;
     }
-
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    const statusContainer = document.getElementById("status-container");
-
-    video.classList.remove("hidden");
-    statusContainer.classList.remove("hidden");
-
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-      .then(stream => {
-        video.srcObject = stream;
-        document.getElementById("status-title").innerText = "Verifikasi...";
-        document.getElementById("status-body").innerText = "Arahkan kamera ke QR Code";
-
-        setInterval(() => {
-          if (isProcessing) return;
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-          if (code) {
-            isProcessing = true;
-            document.getElementById("status-title").innerText = "Memproses...";
-            document.getElementById("status-body").innerText = "Kode terbaca: " + code.data;
-
-            fetch("https://script.google.com/macros/s/AKfycbyVJaRLqp_NtdsyHPZ4R3xrZvothahVYbURvGBGE0b4r0QOrRJFejxiCOQsVIcFuM-x/exec", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ qrcode: code.data, email: userEmail })
-            })
-            .then(res => res.json())
-            .then(res => {
-              document.getElementById("status-title").innerText = res.success ? "✓ Berhasil" : "✗ Gagal";
-              document.getElementById("status-body").innerText = res.message;
-              setTimeout(() => { isProcessing = false; }, 3000);
-            })
-            .catch(err => {
-              document.getElementById("status-title").innerText = "System Error";
-              document.getElementById("status-body").innerText = "Koneksi terputus.";
-              setTimeout(() => { isProcessing = false; }, 5000);
-            });
-          }
-        }, 800);
-      })
-      .catch(err => {
-        document.getElementById("status-title").innerText = "Error Kamera";
-        document.getElementById("status-body").innerText = err.name + " - " + err.message;
-      });
   }
+  requestAnimationFrame(tick);
+}
 </script>
-</body>
-</html>
