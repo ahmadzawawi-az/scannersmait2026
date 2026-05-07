@@ -77,7 +77,7 @@
             document.getElementById("status-body").innerText = "Kode terbaca: " + code.data;
 
             // --- Kirim ke GAS Web App ---
-            fetch("YOUR_GAS_WEBAPP_URL", {
+            fetch("https://script.google.com/macros/s/AKfycbyVJaRLqp_NtdsyHPZ4R3xrZvothahVYbURvGBGE0b4r0QOrRJFejxiCOQsVIcFuM-x/exec", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ qrcode: code.data })
