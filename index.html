@@ -81,64 +81,64 @@
     }
 
 function onScanSuccess(decodedText) {
-        const petugas = document.getElementById('petugas').value;
-        const email = document.getElementById('emailPetugas').value;
+    const petugas = document.getElementById('petugas').value;
+    const email = document.getElementById('emailPetugas').value;
 
-        if(!petugas || !email) {
-            alert("Lengkapi Nama & Email Petugas!");
-            return;
+    if(!petugas || !email) {
+        alert("Lengkapi Nama & Email Petugas!");
+        return;
+    }
+
+    // 1. Matikan animasi segera
+    document.getElementById('reader').classList.remove('scanning');
+    
+    // 2. Tunda pause sebentar agar proses transisi mulus
+    html5QrCode.pause();
+    showStatus("⏳ Memverifikasi...", "alert-info");
+
+    fetch(WEB_APP_URL, {
+        method: "POST",
+        body: JSON.stringify({ nomor: decodedText, petugas: petugas, emailPetugas: email })
+    })
+    .then(res => res.text())
+    .then(txt => {
+        const responServer = txt.toUpperCase().trim(); // Tambahkan .trim()
+        const isBerhasil = responServer.includes("BERHASIL");
+        
+        const cleanMsg = txt.replace("BERHASIL: ", "").replace("GAGAL: ", "").replace("ERROR: ", "");
+        
+        // RESET AUDIO
+        sndSuccess.pause();
+        sndError.pause();
+        sndSuccess.currentTime = 0;
+        sndError.currentTime = 0;
+
+        if (isBerhasil) {
+            // Coba mainkan suara sukses dulu baru tampilkan UI
+            sndSuccess.play().catch(e => console.log("Audio sukses terhambat:", e));
+        } else {
+            sndError.play().catch(e => console.log("Audio gagal terhambat:", e));
         }
 
-        html5QrCode.pause();
-        showStatus("⏳ Memverifikasi...", "alert-info");
+        statusDiv.innerHTML = `
+            <div>${cleanMsg}</div>
+            <button id="btn-ok" class="btn ${isBerhasil ? 'btn-success' : 'btn-danger'} mt-2 px-5 fw-bold shadow">OKE - LANJUT</button>
+        `;
+        statusDiv.className = `alert mt-3 d-block fw-bold ${isBerhasil ? 'alert-success' : 'alert-danger'}`;
 
-        fetch(WEB_APP_URL, {
-            method: "POST",
-            body: JSON.stringify({ nomor: decodedText, petugas: petugas, emailPetugas: email })
-        })
-        .then(res => res.text())
-        .then(txt => {
-            // Kita paksa teks menjadi huruf besar semua agar pengecekan tidak meleset
-            const responServer = txt.toUpperCase();
-            const isBerhasil = responServer.includes("BERHASIL");
-            
-            const cleanMsg = txt.replace("BERHASIL: ", "").replace("GAGAL: ", "").replace("ERROR: ", "");
-            
-            // RESET SEMUA AUDIO (Penting agar tidak tumpang tindih)
-            sndSuccess.pause();
-            sndError.pause();
-            sndSuccess.currentTime = 0;
-            sndError.currentTime = 0;
-
-            // LOGIKA PEMILIHAN SUARA
-            if (isBerhasil === true) {
-                console.log("Memutar Suara Sukses");
-                sndSuccess.play().catch(e => console.log("Audio sukses diblokir browser"));
-            } else {
-                console.log("Memutar Suara Gagal");
-                sndError.play().catch(e => console.log("Audio gagal diblokir browser"));
-            }
-
-            statusDiv.innerHTML = `
-                <div>${cleanMsg}</div>
-                <button id="btn-ok" class="btn ${isBerhasil ? 'btn-success' : 'btn-danger'} mt-2 px-5 fw-bold shadow">OKE - LANJUT</button>
-            `;
-            statusDiv.className = `alert mt-3 d-block fw-bold ${isBerhasil ? 'alert-success' : 'alert-danger'}`;
-
-            document.getElementById('btn-ok').addEventListener('click', function() {
-                statusDiv.classList.add('d-none');
-                html5QrCode.resume();
-            });
-        })
-        .catch(err => {
-            // Jika koneksi internet putus, bunyikan suara error
-            sndSuccess.pause();
-            sndError.currentTime = 0;
-            sndError.play();
-            alert("Koneksi Error/Server Sibuk");
+        document.getElementById('btn-ok').onclick = function() {
+            statusDiv.className = "alert mt-3 d-none"; // Sembunyikan status
+            document.getElementById('reader').classList.add('scanning');
             html5QrCode.resume();
-        });
-    }
+        };
+    })
+    .catch(err => {
+        sndError.play();
+        alert("Koneksi Error/Server Sibuk");
+        console.error(err);
+        html5QrCode.resume();
+    });
+}
 
     function showStatus(msg, cls) {
         statusDiv.innerText = msg;
