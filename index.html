@@ -9,65 +9,53 @@
     <style>
         body { background: #f4f7f6; color: #333; font-family: 'Segoe UI', sans-serif; }
         .card { background: #ffffff; border: none; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #eee; border: 2px solid #ddd !important; }
+        
+        /* KONTAINER UTAMA SCANNER */
+        #reader { 
+            width: 100% !important; 
+            max-width: 500px; 
+            margin: 0 auto;
+            border-radius: 15px; 
+            overflow: hidden; 
+            background: #000; 
+            min-height: 250px; 
+            border: 2px solid #007bff !important; 
+            position: relative; 
+        }
+
+        #reader video {
+            object-fit: cover !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /*--- ANIMASI GARIS MERAH SCANNING ---*/
+        #reader::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: rgba(255, 0, 0, 0.7);
+            box-shadow: 0 0 10px 2px rgba(255, 0, 0, 0.5);
+            animation: scan 2s linear infinite;
+            z-index: 10;
+            display: none; 
+        }
+
+        @keyframes scan {
+            0% { top: 0%; }
+            50% { top: 100%; }
+            100% { top: 0%; }
+        }
+
+        #reader.scanning::after {
+            display: block;
+        }
+
         .status-msg { font-size: 1.1rem; font-weight: bold; min-height: 60px; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
         .instruction-text { font-size: 0.85rem; color: #666; margin-bottom: 5px; font-weight: 500; }
-    /* KONTAINER UTAMA SCANNER */
-    #reader { 
-        width: 100% !important; 
-        max-width: 500px; 
-        margin: 0 auto;
-        border-radius: 15px; 
-        overflow: hidden; 
-        background: #000; 
-        min-height: 250px; /* Menjaga kotak tidak kempes saat loading */
-        border: 2px solid #007bff !important; /* Border warna biru primer */
-        position: relative; /* WAJIB: Agar garis merah bisa diposisikan absolut */
-    }
-
-    /* Memastikan video memenuhi kotak secara proporsional */
-    #reader video {
-        object-fit: cover !important;
-        width: 100% !important;
-        height: 100% !important;
-    }
-
-    /*--- ANIMASI GARIS MERAH SCANNING ---*/
-    /* Kita gunakan Pseudo-element ::after pada kontainer #reader */
-    #reader::after {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 3px; /* Ketebalan garis */
-        background: rgba(255, 0, 0, 0.7); /* Warna merah dengan sedikit transparansi */
-        box-shadow: 0 0 10px 2px rgba(255, 0, 0, 0.5); /* Efek 'glow' cahaya merah */
-        
-        /* Menghubungkan ke animasi bernama 'scan' */
-        animation: scan 2s linear infinite;
-        
-        z-index: 10; /* Memastikan garis berada di atas video kamera */
-        display: none; /* Sembunyikan dulu sampai kamera aktif */
-    }
-
-    /* Definisikan pergerakan animasi (Naik - Turun) */
-    @keyframes scan {
-        0% { 
-            top: 0%; /* Posisi paling atas */
-        }
-        50% { 
-            top: 100%; /* Posisi paling bawah */
-        }
-        100% { 
-            top: 0%; /* Kembali ke atas */
-        }
-    }
-
-    /* Class tambahan untuk menampilkan garis hanya saat video berjalan */
-    #reader.scanning::after {
-        display: block;
-    }
     </style>
 </head>
 <body>
@@ -93,8 +81,6 @@
 </div>
 
 <audio id="beepSuccess" preload="auto">
-
-     <source src="https://juangjaya.id/smaitah/sukses.mp3" type="audio/mpeg">
      <source src="https://juangjaya.id/smaitah/sukses.mp3" type="audio/mpeg">
 </audio>
 
@@ -109,124 +95,86 @@
     const html5QrCode = new Html5Qrcode("reader");
     const statusDiv = document.getElementById('status');
 
-    // Fungsi untuk "memancing" suara saat klik pertama
     function pancingAudio() {
-        sndSuccess.play().then(() => {
-            sndSuccess.pause();
-            sndSuccess.currentTime = 0;
-        }).catch(e => console.log("Audio pancingan tertahan"));
-        
-        sndError.play().then(() => {
-            sndError.pause();
-            sndError.currentTime = 0;
-        }).catch(e => console.log("Audio pancingan tertahan"));
+        sndSuccess.play().then(() => { sndSuccess.pause(); sndSuccess.currentTime = 0; });
+        sndError.play().then(() => { sndError.pause(); sndError.currentTime = 0; });
     }
 
-function onScanSuccess(decodedText) {
-    const petugas = document.getElementById('petugas').value;
-    const email = document.getElementById('emailPetugas').value;
+    function onScanSuccess(decodedText) {
+        const petugas = document.getElementById('petugas').value;
+        const email = document.getElementById('emailPetugas').value;
 
-    if(!petugas || !email) {
-        alert("Lengkapi Nama & Email Petugas!");
-        return;
-    }
-
-    // 1. Matikan animasi segera
-    document.getElementById('reader').classList.remove('scanning');
-    
-    // 2. Tunda pause sebentar agar proses transisi mulus
-    html5QrCode.pause();
-    showStatus("⏳ Memverifikasi...", "alert-info");
-
-    fetch(WEB_APP_URL, {
-        method: "POST",
-        body: JSON.stringify({ nomor: decodedText, petugas: petugas, emailPetugas: email })
-    })
-    .then(res => res.text())
-    .then(txt => {
-        const responServer = txt.toUpperCase().trim(); // Tambahkan .trim()
-        const isBerhasil = responServer.includes("BERHASIL");
-        
-        const cleanMsg = txt.replace("BERHASIL: ", "").replace("GAGAL: ", "").replace("ERROR: ", "");
-        
-        // RESET AUDIO
-        sndSuccess.pause();
-        sndError.pause();
-        sndSuccess.currentTime = 0;
-        sndError.currentTime = 0;
-
-        if (isBerhasil) {
-            // Coba mainkan suara sukses dulu baru tampilkan UI
-            sndSuccess.play().catch(e => console.log("Audio sukses terhambat:", e));
-        } else {
-            sndError.play().catch(e => console.log("Audio gagal terhambat:", e));
+        if(!petugas || !email) {
+            alert("Lengkapi Nama & Email Petugas!");
+            return;
         }
 
-        statusDiv.innerHTML = `
-            <div>${cleanMsg}</div>
-            <button id="btn-ok" class="btn ${isBerhasil ? 'btn-success' : 'btn-danger'} mt-2 px-5 fw-bold shadow">OKE - LANJUT</button>
-        `;
-        statusDiv.className = `alert mt-3 d-block fw-bold ${isBerhasil ? 'alert-success' : 'alert-danger'}`;
+        // Hentikan animasi dan pause kamera
+        document.getElementById('reader').classList.remove('scanning');
+        html5QrCode.pause();
+        showStatus("⏳ Memverifikasi...", "alert-info");
 
-        document.getElementById('btn-ok').onclick = function() {
-            statusDiv.className = "alert mt-3 d-none"; // Sembunyikan status
-            document.getElementById('reader').classList.add('scanning');
+        fetch(WEB_APP_URL, {
+            method: "POST",
+            body: JSON.stringify({ nomor: decodedText, petugas: petugas, emailPetugas: email })
+        })
+        .then(res => res.text())
+        .then(txt => {
+            const responServer = txt.toUpperCase().trim();
+            const isBerhasil = responServer.includes("BERHASIL");
+            const cleanMsg = txt.replace("BERHASIL: ", "").replace("GAGAL: ", "").replace("ERROR: ", "");
+            
+            // Mainkan Suara
+            if (isBerhasil) {
+                sndSuccess.currentTime = 0;
+                sndSuccess.play().catch(e => console.log("Audio error", e));
+            } else {
+                sndError.currentTime = 0;
+                sndError.play().catch(e => console.log("Audio error", e));
+            }
+
+            statusDiv.innerHTML = `
+                <div>${cleanMsg}</div>
+                <button id="btn-ok" class="btn ${isBerhasil ? 'btn-success' : 'btn-danger'} mt-2 px-5 fw-bold shadow">OKE - LANJUT</button>
+            `;
+            statusDiv.className = `alert mt-3 d-block fw-bold ${isBerhasil ? 'alert-success' : 'alert-danger'}`;
+
+            document.getElementById('btn-ok').onclick = function() {
+                statusDiv.className = "alert mt-3 d-none"; 
+                document.getElementById('reader').classList.add('scanning'); // Animasi nyala lagi
+                html5QrCode.resume();
+            };
+        })
+        .catch(err => {
+            sndError.play();
+            alert("Koneksi Error");
             html5QrCode.resume();
-        };
-    })
-    .catch(err => {
-        sndError.play();
-        alert("Koneksi Error/Server Sibuk");
-        console.error(err);
-        html5QrCode.resume();
-    });
-}
+        });
+    }
 
     function showStatus(msg, cls) {
         statusDiv.innerText = msg;
         statusDiv.className = "alert mt-3 d-block fw-bold " + cls;
     }
 
+    function jalankanKamera() {
+        document.getElementById('start-btn').classList.add('d-none');
+        const config = { fps: 20, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
+
+        html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+        .then(() => {
+            document.getElementById('reader').classList.add('scanning');
+        })
+        .catch(err => {
+            alert("Kamera Error: " + err);
+            document.getElementById('start-btn').classList.remove('d-none');
+        });
+    }
+
     document.getElementById('start-btn').addEventListener('click', function() {
-        pancingAudio(); // PENTING: Membuka 'keran' audio browser
-        this.classList.add('d-none');
-        html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, onScanSuccess);
+        pancingAudio();
+        jalankanKamera();
     });
-
-    // 1. Fungsi untuk menjalankan kamera
-function jalankanKamera() {
-    document.getElementById('start-btn').classList.add('d-none');
-    
-    // Ambil elemen reader
-    const readerElement = document.getElementById('reader');
-
-    const config = { 
-        fps: 20, 
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0 
-    };
-
-    html5QrCode.start(
-        { facingMode: "environment" }, 
-        config, 
-        onScanSuccess
-    ).then(() => {
-        // --- JIKA KAMERA BERHASIL AKTIF, TAMBAHKAN ANIMASI ---
-        readerElement.classList.add('scanning');
-        console.log("Kamera aktif, animasi dijalankan.");
-    }).catch(err => {
-        // Jika gagal, pastikan class scanning tidak ada
-        readerElement.classList.remove('scanning');
-        alert("Kamera Error: " + err);
-        document.getElementById('start-btn').classList.remove('d-none');
-    });
-}
-
-// 2. Hubungkan Tombol dengan Fungsi di atas
-document.getElementById('start-btn').addEventListener('click', function() {
-    pancingAudio(); // Memastikan suara aktif
-    jalankanKamera(); // Menjalankan kamera
-});
 </script>
 </body>
 </html>
