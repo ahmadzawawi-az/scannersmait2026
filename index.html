@@ -12,19 +12,61 @@
         #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #eee; border: 2px solid #ddd !important; }
         .status-msg { font-size: 1.1rem; font-weight: bold; min-height: 60px; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
         .instruction-text { font-size: 0.85rem; color: #666; margin-bottom: 5px; font-weight: 500; }
-        #reader { 
+    /* KONTAINER UTAMA SCANNER */
+    #reader { 
         width: 100% !important; 
         max-width: 500px; 
         margin: 0 auto;
         border-radius: 15px; 
         overflow: hidden; 
-        background: #000; /* Warna hitam agar kotak terlihat meski kamera belum aktif */
-        min-height: 250px; /* Menjaga kotak tidak kempes */
-        border: 2px solid #007bff !important;
+        background: #000; 
+        min-height: 250px; /* Menjaga kotak tidak kempes saat loading */
+        border: 2px solid #007bff !important; /* Border warna biru primer */
+        position: relative; /* WAJIB: Agar garis merah bisa diposisikan absolut */
     }
+
     /* Memastikan video memenuhi kotak secara proporsional */
     #reader video {
         object-fit: cover !important;
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    /*--- ANIMASI GARIS MERAH SCANNING ---*/
+    /* Kita gunakan Pseudo-element ::after pada kontainer #reader */
+    #reader::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 3px; /* Ketebalan garis */
+        background: rgba(255, 0, 0, 0.7); /* Warna merah dengan sedikit transparansi */
+        box-shadow: 0 0 10px 2px rgba(255, 0, 0, 0.5); /* Efek 'glow' cahaya merah */
+        
+        /* Menghubungkan ke animasi bernama 'scan' */
+        animation: scan 2s linear infinite;
+        
+        z-index: 10; /* Memastikan garis berada di atas video kamera */
+        display: none; /* Sembunyikan dulu sampai kamera aktif */
+    }
+
+    /* Definisikan pergerakan animasi (Naik - Turun) */
+    @keyframes scan {
+        0% { 
+            top: 0%; /* Posisi paling atas */
+        }
+        50% { 
+            top: 100%; /* Posisi paling bawah */
+        }
+        100% { 
+            top: 0%; /* Kembali ke atas */
+        }
+    }
+
+    /* Class tambahan untuk menampilkan garis hanya saat video berjalan */
+    #reader.scanning::after {
+        display: block;
     }
     </style>
 </head>
@@ -87,7 +129,9 @@ function onScanSuccess(decodedText) {
             alert("Lengkapi Nama & Email Petugas!");
             return;
         }
-
+        // 1. Matikan animasi (Garis merah berhenti/hilang)
+        document.getElementById('reader').classList.remove('scanning');
+    
         html5QrCode.pause();
         showStatus("⏳ Memverifikasi...", "alert-info");
 
@@ -123,9 +167,11 @@ function onScanSuccess(decodedText) {
                 <button id="btn-ok" class="btn ${isBerhasil ? 'btn-success' : 'btn-danger'} mt-2 px-5 fw-bold shadow">OKE - LANJUT</button>
             `;
             statusDiv.className = `alert mt-3 d-block fw-bold ${isBerhasil ? 'alert-success' : 'alert-danger'}`;
-
+            // 2. Saat user klik OKE
             document.getElementById('btn-ok').addEventListener('click', function() {
                 statusDiv.classList.add('d-none');
+                // JALANKAN LAGI ANIMASI setelah klik OKE
+                document.getElementById('reader').classList.add('scanning');
                 html5QrCode.resume();
             });
         })
@@ -137,6 +183,7 @@ function onScanSuccess(decodedText) {
             alert("Koneksi Error/Server Sibuk");
             html5QrCode.resume();
         });
+    
     }
 
     function showStatus(msg, cls) {
@@ -152,8 +199,10 @@ function onScanSuccess(decodedText) {
 
     // 1. Fungsi untuk menjalankan kamera
 function jalankanKamera() {
-    // Sembunyikan tombol setelah diklik
     document.getElementById('start-btn').classList.add('d-none');
+    
+    // Ambil elemen reader
+    const readerElement = document.getElementById('reader');
 
     const config = { 
         fps: 20, 
@@ -165,7 +214,13 @@ function jalankanKamera() {
         { facingMode: "environment" }, 
         config, 
         onScanSuccess
-    ).catch(err => {
+    ).then(() => {
+        // --- JIKA KAMERA BERHASIL AKTIF, TAMBAHKAN ANIMASI ---
+        readerElement.classList.add('scanning');
+        console.log("Kamera aktif, animasi dijalankan.");
+    }).catch(err => {
+        // Jika gagal, pastikan class scanning tidak ada
+        readerElement.classList.remove('scanning');
         alert("Kamera Error: " + err);
         document.getElementById('start-btn').classList.remove('d-none');
     });
